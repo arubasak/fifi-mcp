@@ -14,12 +14,8 @@ MCP_PIPEDREAM_URL = st.secrets["MCP_PIPEDREAM_URL"]
 # --- LangChain LLM (OpenAI GPT-4o) ---
 llm = ChatOpenAI(model="gpt-4o", api_key=OPENAI_API_KEY)
 
-# --- Streamlit page config ---
-st.set_page_config(page_title="FiFi Co-Pilot", page_icon="🤖", layout="wide")
-
-# --- Initialize LangChain Agent (cached) ---
-@st.cache_resource
-def initialize_langchain_agent():
+# --- Async function to initialize LangChain Agent ---
+async def initialize_langchain_agent():
     # MultiServerMCPClient setup
     client = MultiServerMCPClient(
         {
@@ -34,15 +30,21 @@ def initialize_langchain_agent():
             }
         }
     )
-    # Create agent
-    agent = create_react_agent(llm, client.get_tools())
-    return agent
 
-agent = initialize_langchain_agent()
+    # Await the tools from MCP Client
+    tools = await client.get_tools()
+
+    # Create agent with the tools
+    agent = create_react_agent(llm, tools)
+    return agent
 
 # --- Initialize session state ---
 if "messages" not in st.session_state:
     st.session_state.messages = []
+
+# --- Initialize agent (this is async) ---
+if 'agent' not in st.session_state:
+    st.session_state.agent = asyncio.run(initialize_langchain_agent())
 
 # --- Async handler for user queries ---
 async def handle_user_query_async(user_query: str):
@@ -52,7 +54,7 @@ async def handle_user_query_async(user_query: str):
 
     try:
         with st.spinner("FiFi Co-Pilot is thinking..."):
-            result = await agent.ainvoke({"messages": [{"role": "user", "content": user_query}]})
+            result = await st.session_state.agent.ainvoke({"messages": [{"role": "user", "content": user_query}]})
         assistant_reply = result["messages"][-1].content
     except Exception as e:
         assistant_reply = f"(Error: {e})"
