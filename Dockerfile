@@ -25,4 +25,4 @@ RUN pip install --upgrade pip && \
 EXPOSE $PORT
 
 # Run your Streamlit app on port 8080
-CMD ["streamlit", "run", "fifi-co-pilot.py", "--server.port=8080", "--server.address=0.0.0.0"]
+CMD ["streamlit", "run", "fifi.py", "--server.port=8080", "--server.address=0.0.0.0"]
