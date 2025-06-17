@@ -14,10 +14,10 @@ MESSAGES_TO_KEEP_AFTER_PRUNING = 6
 TOKEN_MODEL_ENCODING = "cl100k_base"
 
 # --- Load environment variables from secrets ---
-OPENAI_API_KEY = st.secrets.get("OPENAI_API_KEY")
-MCP_PINECONE_URL = st.secrets.get("MCP_PINECONE_URL")
-MCP_PINECONE_API_KEY = st.secrets.get("MCP_PINECONE_API_KEY")
-MCP_PIPEDREAM_URL = st.secrets.get("MCP_PIPEDREAM_URL")
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
+MCP_PINECONE_URL = os.environ.get("MCP_PINECONE_URL")
+MCP_PINECONE_API_KEY = os.environ.get("MCP_PINECONE_API_KEY")
+MCP_PIPEDREAM_URL = os.environ.get("MCP_PIPEDREAM_URL")
 
 if not all([OPENAI_API_KEY, MCP_PINECONE_URL, MCP_PINECONE_API_KEY, MCP_PIPEDREAM_URL]):
     st.error("One or more secrets are missing. Please configure them in Streamlit secrets.")
