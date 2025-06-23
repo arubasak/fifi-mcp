@@ -24,7 +24,7 @@ if not all([OPENAI_API_KEY, MCP_PINECONE_URL, MCP_PINECONE_API_KEY, MCP_PIPEDREA
     st.error("One or more secrets are missing. Please configure them in Streamlit secrets.")
     st.stop()
 
-llm = ChatOpenAI(model="gpt-4o-mini", api_key=OPENAI_API_KEY, temperature=0.2)
+llm = ChatOpenAI(model="gpt-4o", api_key=OPENAI_API_KEY, temperature=0.2)
 THREAD_ID = "fifi_streamlit_session"
 
 def count_tokens(messages: list, model_encoding: str = TOKEN_MODEL_ENCODING) -> int:
