@@ -10,7 +10,7 @@ from langchain_openai import ChatOpenAI
 from langchain_mcp_adapters.client import MultiServerMCPClient
 
 # --- Constants for History Pruning ---
-MAX_HISTORY_TOKENS = 90000
+MAX_HISTORY_TOKENS = 30000
 MESSAGES_TO_KEEP_AFTER_PRUNING = 6
 TOKEN_MODEL_ENCODING = "cl100k_base"
 
