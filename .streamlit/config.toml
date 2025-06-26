@@ -16,6 +16,6 @@ textColor = "#31333F"
 font = "sans serif"
 
 [server]
-enableCORS = true
+enableCORS = false
 corsAllowedOrigins = ['https://12taste.com', 'https://streamlit.app', 'https://streamlit.io']
-enableXsrfProtection = true
+enableXsrfProtection = false
