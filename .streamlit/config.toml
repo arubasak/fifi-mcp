@@ -1,6 +1,7 @@
 [theme]
 # The primary accent color for interactive elements (buttons, borders, etc.)
 primaryColor = "#e6007e"
+base = "light"
 
 # The background color for the main app area (can be white or another color)
 backgroundColor = "#ffffff"
