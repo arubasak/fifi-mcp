@@ -13,3 +13,8 @@ textColor = "#31333F"
 
 # The font for the app
 font = "sans serif"
+
+[server]
+enableCORS = true
+corsAllowedOrigins = ['https://12taste.com']
+enableXsrfProtection = true
