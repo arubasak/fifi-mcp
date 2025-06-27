@@ -1,3 +1,12 @@
+# --- Page Configuration (MUST BE THE FIRST STREAMLIT COMMAND) ---
+import streamlit as st
+st.set_page_config(
+    page_title="FiFi Co-Pilot",
+    page_icon="assets/fifi-avatar.png", # Good practice to set an icon
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
 import streamlit as st
 import datetime
 import asyncio
