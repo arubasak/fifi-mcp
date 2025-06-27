@@ -16,7 +16,6 @@ textColor = "#31333F"
 font = "sans serif"
 
 [server]
-baseUrlPath = "https://fifi-co-pilot-v1-121263692901.europe-west4.run.app/"
 enableCORS = true
 corsAllowedOrigins = ['https://12taste.com', 'https://streamlit.app', 'https://streamlit.io', 'https://github.com', 'https://fifi-co-pilot-v1-121263692901.europe-west4.run.app']
 
