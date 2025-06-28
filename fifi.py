@@ -246,6 +246,8 @@ st.markdown("""
     .terms-footer {
         position: fixed; /* Fix it to the bottom of the viewport */
         bottom: 10px;    /* Adjusted: Positioned lower than the chat input, closer to the very bottom */
+        margin-top: 0px; 
+        margin-bottom: 10px;
         
         /* These properties center the footer relative to the chat input */
         left: 50%;
