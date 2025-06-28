@@ -225,7 +225,7 @@ st.markdown("""
         border: 1px solid #ffffff;
         border-radius: 7px;
         /* Position the input box above the terms footer */
-        bottom: 40px; /* Lifted from 30px to make space for the footer below it */
+        bottom: 10px; /* Lifted from 30px to make space for the footer below it */
         position: fixed; /* Keep it fixed relative to the iframe's viewport */
         width: 100%; /* Ensure it spans the width within its containing block */
         max-width: 736px; /* Maintain the max-width to align with main content */
