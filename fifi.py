@@ -1,13 +1,14 @@
 # --- Page Configuration (MUST BE THE FIRST STREAMLIT COMMAND) ---
 import streamlit as st
+
+# Configuration is set to "auto" to ensure sidebar collapses on mobile, as intended.
 st.set_page_config(
-    page_title="FiFi Co-Pilot",
-    page_icon="assets/fifi-avatar.png", # Good practice to set an icon
+    page_title="FiFi",
+    page_icon="assets/fifi-avatar.png",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="auto"
 )
 
-import streamlit as st
 import datetime
 import asyncio
 import tiktoken
@@ -23,20 +24,11 @@ from langchain_core.messages import SystemMessage, AIMessage, HumanMessage, Tool
 from langchain_core.tools import tool
 from tavily import TavilyClient
 
-# --- Page Configuration (MUST BE THE FIRST STREAMLIT COMMAND) ---
-st.set_page_config(
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
-
 # --- FINAL: Robust Memory Management Constants ---
-# Layer 1: Summarization is triggered if history exceeds these thresholds.
-HISTORY_MESSAGE_THRESHOLD = 6 
-HISTORY_TOKEN_THRESHOLD = 25000 # Kept slightly below the hard limit as a first-pass check
+HISTORY_MESSAGE_THRESHOLD = 6
+HISTORY_TOKEN_THRESHOLD = 25000
 MESSAGES_TO_RETAIN_AFTER_SUMMARY = 2
-
-# Layer 2: Final safety net. Your OpenAI TPM Limit is ~30,000. We reserve ~4k for the output.
-MAX_INPUT_TOKENS = 25904 
+MAX_INPUT_TOKENS = 25904
 TOKEN_MODEL_ENCODING = "cl100k_base"
 
 # --- Load environment variables from secrets ---
@@ -113,7 +105,7 @@ def count_tokens(messages: list, model_encoding: str = TOKEN_MODEL_ENCODING) -> 
     except Exception: encoding = tiktoken.get_encoding("cl100k_base")
     num_tokens = 0
     for message in messages:
-        num_tokens += 4 
+        num_tokens += 4
         if isinstance(message, BaseMessage): content = message.content
         elif isinstance(message, dict): content = message.get("content", "")
         else: content = str(message)
@@ -127,24 +119,17 @@ def count_tokens(messages: list, model_encoding: str = TOKEN_MODEL_ENCODING) -> 
 async def manage_history_with_summary(memory: MemorySaver, config: dict, llm_for_summary: ChatOpenAI):
     checkpoint = memory.get(config)
     if not checkpoint: return
-
     history = checkpoint.get("messages", [])
     conversational_history = [msg for msg in history if isinstance(msg, (AIMessage, HumanMessage))]
-    
     token_count = count_tokens(conversational_history)
     message_count = len(conversational_history)
-
     if message_count > HISTORY_MESSAGE_THRESHOLD or token_count > HISTORY_TOKEN_THRESHOLD:
         st.info("Conversation history is long. Summarizing older messages...")
         print(f"@@@ MEMORY MGMT: Triggered. Msgs: {message_count}, Tokens: {token_count}")
-
         if len(conversational_history) <= MESSAGES_TO_RETAIN_AFTER_SUMMARY: return
-
         messages_to_summarize = conversational_history[:-MESSAGES_TO_RETAIN_AFTER_SUMMARY]
         messages_to_keep = conversational_history[-MESSAGES_TO_RETAIN_AFTER_SUMMARY:]
-
         summarization_prompt = [SystemMessage(content="You are an expert at creating concise, third-person summaries of conversations. Extract all key entities, topics, and user intentions mentioned."), HumanMessage(content="\n".join([f"{m.type.capitalize()}: {m.content}" for m in messages_to_summarize]))]
-        
         try:
             summary_response = await llm_for_summary.ainvoke(summarization_prompt)
             summary_text = summary_response.content
@@ -157,25 +142,16 @@ async def manage_history_with_summary(memory: MemorySaver, config: dict, llm_for
 
 # --- Layer 2: Final Prompt Safety Net ---
 def truncate_prompt_if_needed(messages: list, max_tokens: int) -> list:
-    """
-    Ensures the final prompt payload is under the token limit by truncating
-    the oldest conversational messages from the history portion if necessary.
-    """
     total_tokens = count_tokens(messages)
     if total_tokens <= max_tokens:
         return messages
-
     st.warning(f"Request is too large ({total_tokens} tokens). Shortening conversation to fit within limits.")
     print(f"@@@ SAFETY NET: Payload size {total_tokens} > {max_tokens}. Truncating.")
-    
-    # Deconstruct the prompt to safely remove only from the history
     system_message = messages[0]
     user_query = messages[-1]
     history = messages[1:-1]
-
     while count_tokens([system_message] + history + [user_query]) > max_tokens and history:
-        history.pop(0) # Remove the oldest message from the history part
-
+        history.pop(0)
     return [system_message] + history + [user_query]
 
 # --- Async handler for agent initialization ---
@@ -203,23 +179,14 @@ async def execute_agent_call_with_memory(user_query: str, agent_components: dict
     assistant_reply = ""
     try:
         config = {"configurable": {"thread_id": THREAD_ID}}
-        
-        # Layer 1: Manage the long-term history first.
         await manage_history_with_summary(agent_components["memory_instance"], config, agent_components["llm_for_summary"])
-
         main_system_prompt_content_str = agent_components["main_system_prompt_content_str"]
         current_checkpoint = agent_components["memory_instance"].get(config)
         history_messages = current_checkpoint.get("messages", []) if current_checkpoint else []
-        
-        # Assemble the full payload for this turn
         event_messages = [SystemMessage(content=main_system_prompt_content_str)] + history_messages + [HumanMessage(content=user_query)]
-        
-        # Layer 2: Run the assembled payload through the final safety net.
         final_messages = truncate_prompt_if_needed(event_messages, MAX_INPUT_TOKENS)
-        
         event = {"messages": final_messages}
         result = await agent_components["agent_executor"].ainvoke(event, config=config)
-        
         if isinstance(result, dict) and "messages" in result and result["messages"]:
             for msg in reversed(result["messages"]):
                 if isinstance(msg, AIMessage):
@@ -232,7 +199,6 @@ async def execute_agent_call_with_memory(user_query: str, agent_components: dict
     except Exception as e:
         st.error(f"Error during agent invocation: {e}\n{traceback.format_exc()}")
         assistant_reply = f"(Error: {e})"
-    
     st.session_state.messages.append({"role": "assistant", "content": assistant_reply})
     st.session_state.thinking_for_ui = False
     st.rerun()
@@ -240,27 +206,53 @@ async def execute_agent_call_with_memory(user_query: str, agent_components: dict
 # --- Input Handling Function ---
 def handle_new_query_submission(query_text: str):
     if not st.session_state.get('thinking_for_ui', False):
-        st.session_state.active_question = query_text # Set active question on click
+        st.session_state.active_question = query_text
         st.session_state.messages.append({"role": "user", "content": query_text})
         st.session_state.query_to_process = query_text
         st.session_state.thinking_for_ui = True
-        st.rerun()
+        #st.rerun()
 
 # --- Streamlit App Starts Here ---
+
+# This CSS block now achieves the final layout using pure CSS manipulation.
 st.markdown("""
 <style>
-    /* This is the container for the chat input */
+    /* 1. The original styling for the chat input container from your reference code */
     .st-emotion-cache-1629p8f {
-        border: 1px solid #cccccc; /* Set a default light grey border */
-        border-radius: 7px; /* Optional: adds rounded corners like in the screenshot */
+        border: 1px solid #ffffff;
+        border-radius: 7px;
+        /* Lift the original input bar to make space below it */
+        bottom: 30px; /* Increased from 30px to push everything up */
     }
-    /* This applies when the user clicks into the text input */
     .st-emotion-cache-1629p8f:focus-within {
-        border-color: #e6007e; /* Change border to Mexican Pink on focus */
+        border-color: #e6007e;
+    }
+
+    /* 2. Increase the font size for the introductory caption */
+    [data-testid="stCaptionContainer"] p {
+        font-size: 1.3em !important;
+    }
+
+    /* 3. Style for the "Terms and Conditions" text */
+    .terms-footer {
+        position: fixed; /* Fix it to the bottom of the viewport */
+        bottom: 30px;    /* Increased from 30px to push it up */
+        
+        /* These properties center the footer relative to the chat input */
+        left: 50%;
+        transform: translateX(-50%);
+        width: 100%;
+        max-width: 736px; /* Same max-width as Streamlit's main content column */
+        
+        text-align: center; /* Middle-alignment as requested */
+        color: grey;
+        font-size: 0.90rem;
+        z-index: 100;
     }
 </style>
 """, unsafe_allow_html=True)
-st.markdown("<h1 style='font-size: 24px;'>FiFi Co-Pilot</h1>", unsafe_allow_html=True)
+
+st.markdown("<h1 style='font-size: 24px;'>FiFi, AI sourcing assistant</h1>", unsafe_allow_html=True)
 st.caption("Hello, I am FiFi, your AI-powered assistant, designed to support you across the sourcing and product development journey. Find the right ingredients, explore recipe ideas, technical data, and more.")
 
 if SECRETS_ARE_MISSING:
@@ -323,8 +315,15 @@ if st.session_state.get('query_to_process'):
     st.session_state.query_to_process = None
     asyncio.run(execute_agent_call_with_memory(query_to_run, agent_components))
 
-# Chat input
-user_prompt = st.chat_input("Ask me for ingredients, recipes, or order support—in any language.", key="main_chat_input",
+# This markdown object is now controlled by the ".terms-footer" CSS class
+st.markdown("""
+<div class="terms-footer">
+    By using this agent, you agree to our <a href="https://www.12taste.com/terms-conditions/" target="_blank">Terms of Service</a>.
+</div>
+""", unsafe_allow_html=True)
+
+# THE ORIGINAL CHAT INPUT - Its position is lifted by the CSS above.
+user_prompt = st.chat_input("Ask me for ingredients, recipes, or product development—in any language.", key="main_chat_input",
                             disabled=st.session_state.get('thinking_for_ui', False) or not st.session_state.get("components_loaded", False))
 if user_prompt:
     st.session_state.active_question = None
