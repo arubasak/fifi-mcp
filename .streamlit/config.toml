@@ -7,10 +7,6 @@ headless = true
 enableCORS = true
 enableXsrfProtection = false # Often needed for embedded apps with forms/buttons
 
-[server.headers]
-# This explicitly allows your website to embed the app.
-Content-Security-Policy = "frame-ancestors https://www.12taste.com https://*.12taste.com"
-
 [browser]
 # This is less critical for the embedding itself but good to have.
 serverAddress = "fifi-co-pilot-v1-121263692901.europe-west4.run.app"
