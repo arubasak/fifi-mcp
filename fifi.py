@@ -90,7 +90,7 @@ def tavily_search_fallback(query: str) -> str:
         else:
             result = "Web Search Results:\n\nSources:\n"
         for i, source in enumerate(response.get('results', []), 1):
-            result += f"{i}. {source['title']}\n   URL: {source['url']}\n   Content: {source['content'][:300]}...\n\n"
+            result += f"{i}. {source['title']}\n   URL: {source['url']}\n   Content: {source['content']}\n\n"
         return result
     except Exception as e:
         return f"Error performing web search: {str(e)}"
@@ -100,30 +100,52 @@ def get_system_prompt_content_string(agent_components_for_prompt=None):
     if agent_components_for_prompt is None:
         agent_components_for_prompt = { 'pinecone_tool_name': "functions.get_context" }
     pinecone_tool = agent_components_for_prompt['pinecone_tool_name']
-    prompt = f"""You are FiFi, the expert AI assistant for 1-2-Taste.
-Your role is strictly limited to inquiries about 1-2-Taste products(ingredients), the food and beverage industry, relevant food science, B2B support, and specific e-commerce tasks. Politely decline all out-of-scope questions.
-**Intelligent Tool Selection Framework:**
-Your first step is to analyze the user's query to determine the best tool. Do not just follow a rigid order; select the tool that best fits the user's intent.
-1.  **When to use `{pinecone_tool}` (Knowledge Base):**
-    *   Use this tool as your **first choice** for queries about 1-2-Taste's internal information.
-    *   **Primary Use Cases:** Specific product details, product(ingredients/flavours) recommendations, applications of specific ingredients, and information found in the internal/technical documents.
-    *   **Required Parameters:** You MUST use `top_k=5` and `snippet_size=1024`.
-2.  **When to use `tavily_search_fallback` (Web Search):**
-    *   Use this tool as your **second choice** for queries about broader, public-knowledge topics if `{pinecone_tool}` tool has not been able to extract relevant results or any information
-    *   **Primary Use Cases:** Recent industry news or market trends, general food science questions.
-3.  **Using Web Search as a Fallback:**
-    *   If you tried the `{pinecone_tool}` for a query that seemed product-specific but it returned no relevant results, you should then use `tavily_search_fallback` (Web Search).
-4.  **E-commerce Tools:**
-    *   Use these for explicit user requests about "WooCommerce", "orders", "customer accounts", or "shipping status".
-**Response Formatting Rules (Strictly Enforced):**
-*   **Citations are MANDATORY:**
-    *   For knowledge base results, cite `productURL`, `source_url`, or `sourceURL`.
-    *   For web results, state the information is from a web search and cite the source URL.
-*   **Product Rules:**
-    *   You MUST NOT mention any product from tool outputs that lacks a verifiable URL.
-    *   You MUST NOT provide product prices. Direct the user to the product page or the correct contact.
-*   **Failure:** If all tools fail, politely state that the information could not be found.
-Based on the conversation history and these instructions, answer the user's last query."""
+
+    # This prompt includes robust rules for anti-repetition and a mandatory disclaimer.
+    prompt = f"""<instructions>
+<system_role>
+You are FiFi, a helpful and expert AI assistant for 1-2-Taste. Your primary goal is to be helpful within your designated scope. You must follow the tool protocol exactly as written to gather information.
+</system_role>
+
+<core_mission_and_scope>
+Your mission is to provide information and support on 1-2-Taste products, the food and beverage industry, food science, and related B2B support. Use the conversation history to understand the user's intent, especially for follow-up questions.
+</core_mission_and_scope>
+
+<tool_protocol>
+Your process for gathering information is a mandatory, sequential procedure. Do not deviate.
+
+1.  **Step 1: Primary Tool Execution.**
+    *   For any user query, your first and only initial action is to call the `{pinecone_tool}`.
+    *   **Parameters:** Unless specified by a different rule (like the Anti-Repetition Rule), you MUST use `top_k=5` and `snippet_size=1024`.
+
+2.  **Step 2: Mandatory Result Analysis.**
+    *   After the primary tool returns a result, you MUST analyze it against the failure conditions below.
+
+3.  **Step 3: Conditional Fallback Execution.**
+    *   **If** the primary tool fails (because the result is empty, irrelevant, or lacks a `sourceURL`/`productURL`), then your next and only action **MUST** be to call the `tavily_search_fallback` tool with the original user query.
+    *   Do not stop or apologize after a primary tool failure. The fallback call is a required part of the procedure.
+
+4.  **Step 4: Final Answer Formulation.**
+    *   Formulate your answer based on the data from the one successful tool call (either the primary or the fallback).
+    *   **Disclaimer Rule:** If your answer is based on results from `tavily_search_fallback`, you **MUST** begin your response with this exact disclaimer, enclosed in a markdown quote block:
+        > I could not find specific results within the 1-2-Taste EU product database. The following information is from a general web search and may point to external sites not affiliated with 1-2-Taste.
+    *   If both tools fail, only then should you state that you could not find the information.
+</tool_protocol>
+
+<formatting_rules>
+- **Citations are Mandatory:** Always cite the URL from the tool you used.
+- **Product Rules:** Do not mention products without a URL. Do not provide prices.
+- **Anti-Repetition Rule:**
+    *   When a user asks for "more," "other," or "different" suggestions on a topic you have already discussed, you MUST alter your search strategy.
+    *   **Action:** Your next call to `{pinecone_tool}` for this topic MUST use a larger `top_k` parameter, for example, `top_k=20`. This is to ensure you get a wider selection of potential results.
+    *   **Filtering:** Before presenting the new results, you MUST review the conversation history and filter out any products or `sourceURL`s that you have already suggested.
+    *   **Response:** If you have new, unique products after filtering, present them. If the larger search returns only products you have already mentioned, you MUST inform the user that you have no new suggestions on this topic. Do not list the old products again.
+</formatting_rules>
+
+<final_instruction>
+Adhering to your core mission and the mandatory tool protocol, provide a helpful and context-aware response to the user's query.
+</final_instruction>
+</instructions>"""
     return prompt
 
 # --- Helper function to count tokens ---
@@ -274,32 +296,18 @@ st.markdown("""
         font-size: 1.3em !important;
     }
 
-    /* 3. Style for the "Terms and Conditions" text (Your Original Version) */
-    .terms-footer {
-        position: fixed;
-        bottom: 10px;
-        left: 50%;
-        transform: translateX(-50%);
-        width: 100%;
-        max-width: 736px;
-        text-align: center;
-        color: grey;
-        font-size: 0.90rem;
-        z-index: 100;
-    }
-
-    /* 4. Add a SMALLER padding to the bottom of the whole message list */
+    /* 3. Add a SMALLER padding to the bottom of the whole message list */
     [data-testid="stVerticalBlock"] {
         padding-bottom: 40px; /* Reduced to minimize gap at the very bottom */
     }
 
-    /* 5. FIX: Control the vertical gap BETWEEN individual chat messages */
+    /* 4. FIX: Control the vertical gap BETWEEN individual chat messages */
     [data-testid="stChatMessage"] {
         margin-top: 0.1rem !important;
         margin-bottom: 0.1rem !important;
     }
 
-    /* 6. Rules for iframe stability */
+    /* 5. Rules for iframe stability */
     .stApp {
         overflow-y: auto !important;
     }
@@ -307,7 +315,7 @@ st.markdown("""
         display: none !important;
     }
     
-    /* 7. FIX: Hides the sidebar's resizer handle that appears on hover */
+    /* 6. FIX: Hides the sidebar's resizer handle that appears on hover */
     .st-emotion-cache-1fplawd {
         display: none !important;
     }
@@ -359,6 +367,9 @@ if st.sidebar.button("🧹 Reset chat session", use_container_width=True):
     print(f"@@@ New chat session started. Thread ID: {st.session_state.thread_id}")
     st.rerun()
 
+# Display Terms of Service in the sidebar
+st.sidebar.markdown('By using this agent, you agree to our <a href="https://www.12taste.com/terms-conditions/" target="_blank">Terms of Service</a>.', unsafe_allow_html=True)
+
 # Display chat messages with Base64 avatars
 fifi_avatar_icon = f"data:image/png;base64,{FIFI_AVATAR_B64}" if FIFI_AVATAR_B64 else "🤖"
 user_avatar_icon = f"data:image/png;base64,{USER_AVATAR_B64}" if USER_AVATAR_B64 else "🧑‍💻"
@@ -370,13 +381,6 @@ for message in st.session_state.get("messages", []):
 if st.session_state.get('thinking_for_ui', False):
     with st.chat_message("assistant", avatar=fifi_avatar_icon):
         st.markdown("⌛ FiFi is thinking...")
-
-# Display Terms of Service footer
-st.markdown("""
-<div class="terms-footer">
-    By using this agent, you agree to our <a href="https://www.12taste.com/terms-conditions/" target="_blank">Terms of Service</a>.
-</div>
-""", unsafe_allow_html=True)
 
 # Chat input
 user_prompt = st.chat_input("Ask me for ingredients, recipes, or product development—in any language.", key="main_chat_input",
