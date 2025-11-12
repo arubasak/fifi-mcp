@@ -346,18 +346,6 @@ except Exception as e:
     st.stop()
 
 # --- UI Rendering ---
-st.sidebar.markdown("## Quick questions")
-preview_questions = [
-    "Suggest some natural strawberry flavours for beverage",
-    "Latest trends in plant-based proteins for 2025?",
-    "Suggest me some vanilla flavours for ice-cream"
-]
-for question in preview_questions:
-    button_type = "primary" if st.session_state.active_question == question else "secondary"
-    if st.sidebar.button(question, key=f"preview_{question}", use_container_width=True, type=button_type):
-        handle_new_query_submission(question)
-
-st.sidebar.markdown("---")
 if st.sidebar.button("🧹 Reset chat session", use_container_width=True):
     st.session_state.messages = []
     st.session_state.thinking_for_ui = False
